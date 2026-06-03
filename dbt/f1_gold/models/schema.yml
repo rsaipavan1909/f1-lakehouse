@@ -1,0 +1,28 @@
+version: 2
+
+models:
+  - name: fact_race_results
+    description: "One row per driver per race with results and lap stats"
+    columns:
+      - name: result_surrogate_key
+        tests:
+          - unique
+          - not_null
+      - name: driver_code
+        tests:
+          - not_null
+
+  - name: dim_driver
+    description: "Driver dimension with SCD Type 2 team history"
+    columns:
+      - name: driver_surrogate_key
+        tests:
+          - unique
+          - not_null
+
+  - name: gold_driver_standings
+    description: "Season KPIs per driver — powers the dashboard"
+    columns:
+      - name: driver_code
+        tests:
+          - not_null
