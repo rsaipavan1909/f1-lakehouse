@@ -97,7 +97,7 @@ jobs:
             outputs:
               ci:
                 type: duckdb
-                path: data/f1_warehouse_test.duckdb
+                path: /home/runner/work/f1-lakehouse/f1-lakehouse/data/f1_warehouse_test.duckdb
                 schema: gold
           EOF
 
