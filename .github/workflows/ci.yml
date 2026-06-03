@@ -1,15 +1,137 @@
-# Add venv to gitignore and remove it from git tracking
-echo "venv/" >> .gitignore
-echo ".venv/" >> .gitignore
-echo "data/" >> .gitignore
-echo "airflow/logs/" >> .gitignore
-echo "__pycache__/" >> .gitignore
-echo "*.pyc" >> .gitignore
+name: F1 Lakehouse CI
 
-git rm -r --cached venv/ 2>/dev/null || true
-git rm -r --cached .venv/ 2>/dev/null || true
-git rm -r --cached data/ 2>/dev/null || true
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
 
-git add .
-git commit -m "Phase 6: Add CI/CD workflow and fix gitignore"
-git push origin main
+jobs:
+
+  code-quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install linting tools
+        run: pip install flake8 black
+
+      - name: Lint with flake8
+        run: |
+          flake8 ingestion/ transformations/ \
+            --max-line-length=120 \
+            --exclude=__pycache__,.venv \
+            --count --statistics
+        continue-on-error: true
+
+  pipeline-tests:
+    name: Pipeline Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install duckdb dbt-duckdb pytest
+
+      - name: Create test database
+        run: |
+          python -c "
+          import duckdb
+          import os
+          os.makedirs('data', exist_ok=True)
+          con = duckdb.connect('data/f1_warehouse_test.duckdb')
+          con.execute('CREATE SCHEMA IF NOT EXISTS silver')
+          con.execute('''
+            CREATE TABLE silver.results AS
+            SELECT
+              2024 AS year,
+              1 AS round,
+              'Bahrain Grand Prix' AS event_name,
+              'VER' AS Abbreviation,
+              'Max Verstappen' AS FullName,
+              'Red Bull Racing' AS TeamName,
+              '3D2BE7' AS TeamColor,
+              1.0 AS Position,
+              1.0 AS GridPosition,
+              25.0 AS Points,
+              'Finished' AS Status,
+              '1' AS ClassifiedPosition,
+              current_timestamp AS _ingested_at
+          ''')
+          con.execute('''
+            CREATE TABLE silver.laps AS
+            SELECT
+              2024 AS year,
+              1 AS round,
+              'Bahrain Grand Prix' AS event_name,
+              'VER' AS Driver,
+              'Red Bull Racing' AS Team,
+              1 AS LapNumber,
+              'SOFT' AS Compound,
+              1 AS TyreLife,
+              true AS FreshTyre,
+              false AS IsPersonalBest,
+              220.5 AS SpeedI1,
+              215.3 AS SpeedI2,
+              218.7 AS SpeedFL,
+              310.2 AS SpeedST,
+              '0 days 00:01:34.000' AS LapTime,
+              '0 days 00:00:28.000' AS Sector1Time,
+              '0 days 00:00:33.000' AS Sector2Time,
+              '0 days 00:00:33.000' AS Sector3Time,
+              current_timestamp AS _ingested_at
+          ''')
+          print('Test database created')
+          con.close()
+          "
+
+      - name: Set up dbt profile
+        run: |
+          mkdir -p ~/.dbt
+          echo 'f1_gold:' > ~/.dbt/profiles.yml
+          echo '  target: ci' >> ~/.dbt/profiles.yml
+          echo '  outputs:' >> ~/.dbt/profiles.yml
+          echo '    ci:' >> ~/.dbt/profiles.yml
+          echo '      type: duckdb' >> ~/.dbt/profiles.yml
+          echo '      path: data/f1_warehouse_test.duckdb' >> ~/.dbt/profiles.yml
+          echo '      schema: gold' >> ~/.dbt/profiles.yml
+
+      - name: Run dbt models
+        run: cd dbt/f1_gold && dbt run --profiles-dir ~/.dbt
+
+      - name: Run dbt tests
+        run: cd dbt/f1_gold && dbt test --profiles-dir ~/.dbt
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install duckdb pytest
+
+      - name: Run unit tests
+        run: pytest tests/ -v --tb=short
