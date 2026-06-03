@@ -1,0 +1,7 @@
+f1_gold:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: /opt/airflow/data/f1_warehouse.duckdb
+      schema: gold
