@@ -1,8 +1,34 @@
-data/
-data/
+# Python
 venv/
 .venv/
-data/
-airflow/logs/
 __pycache__/
 *.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Data files (too large for GitHub)
+data/
+*.duckdb
+*.parquet
+
+# Airflow
+airflow/logs/
+airflow/plugins/
+
+# Environment
+.env
+*.env
+
+# IDE
+.vscode/
+.idea/
+
+# dbt
+dbt/f1_gold/target/
+dbt/f1_gold/logs/
+
+# OS
+.DS_Store
+Thumbs.db
